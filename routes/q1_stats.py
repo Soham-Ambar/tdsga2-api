@@ -10,7 +10,7 @@ EMAIL = "23f3002902@ds.study.iitm.ac.in"
 
 # IMPORTANT: Replace this with the exact assigned origin shown in your exam panel.
 # Example: ALLOWED_ORIGIN = "https://exam.sanand.workers.dev"
-ALLOWED_ORIGIN = "https://exam.sanand.workers.dev"
+ALLOWED_ORIGIN = "https://dash-sw2mlo.example.com"
 
 
 def add_required_headers(response: Response, start_time: float) -> None:
