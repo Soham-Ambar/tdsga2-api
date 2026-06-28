@@ -9,7 +9,6 @@ from routes.q6_observability import router as observability_router, add_observab
 from routes.q9_orders import router as orders_router
 
 app = FastAPI(title="TDS GA2 API")
-add_observability_middleware(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,7 +19,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Retry-After", "X-Request-ID", "X-Process-Time"],
 )
+
+add_observability_middleware(app)
 
 app.include_router(stats_router)
 app.include_router(verify_router)
@@ -28,6 +30,7 @@ app.include_router(config_router)
 app.include_router(analytics_router)
 app.include_router(observability_router)
 app.include_router(orders_router)
+
 
 @app.get("/")
 def home():

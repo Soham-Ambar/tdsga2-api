@@ -53,8 +53,9 @@ def rate_limit_response(retry_after: str):
         status_code=429,
         content={"error": "rate limit exceeded"},
         headers={
-            "Retry-After": retry_after,
+            "Retry-After": str(retry_after),
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "Retry-After",
         },
     )
 
@@ -67,6 +68,7 @@ def orders_options():
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Retry-After",
         },
     )
 
@@ -117,20 +119,13 @@ def list_orders(
     if not allowed:
         return rate_limit_response(retry_after)
 
-    if limit < 1:
-        limit = 1
-
-    if limit > TOTAL_ORDERS:
-        limit = TOTAL_ORDERS
+    limit = max(1, min(limit, TOTAL_ORDERS))
 
     start = read_cursor(cursor)
     end = min(start + limit, TOTAL_ORDERS)
 
     items = [
-        {
-            "id": i,
-            "name": f"order-{i}",
-        }
+        {"id": i, "name": f"order-{i}"}
         for i in range(start + 1, end + 1)
     ]
 
