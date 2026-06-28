@@ -5,8 +5,10 @@ from routes.q1_stats import router as stats_router
 from routes.q2_verify import router as verify_router
 from routes.q3_config import router as config_router
 from routes.q5_analytics import router as analytics_router
+from routes.q6_observability import router as observability_router, add_observability_middleware
 
 app = FastAPI(title="TDS GA2 API")
+add_observability_middleware(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +25,7 @@ app.include_router(stats_router)
 app.include_router(verify_router)
 app.include_router(config_router)
 app.include_router(analytics_router)
+app.include_router(observability_router)
 
 @app.get("/")
 def home():
