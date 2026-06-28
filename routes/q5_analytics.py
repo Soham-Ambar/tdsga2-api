@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List
@@ -7,7 +7,7 @@ from collections import defaultdict
 router = APIRouter()
 
 EMAIL = "23f3002902@ds.study.iitm.ac.in"
-API_KEY = "ak_9wfphih2klpmm0itoz4e5jqw8"
+API_KEY = "ak_9wfpih2klpmm0itoz4e5jqw8"
 
 
 class Event(BaseModel):
@@ -21,27 +21,24 @@ class AnalyticsRequest(BaseModel):
 
 
 @router.post("/analytics")
-def analytics(
-    request: AnalyticsRequest,
-    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
-):
-    if x_api_key != API_KEY:
-        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+def analytics(payload: AnalyticsRequest, request: Request):
+    received_key = request.headers.get("x-api-key", "").strip()
 
-    total_events = len(request.events)
-    unique_users = len(set(event.user for event in request.events))
+    if received_key != API_KEY:
+        return JSONResponse(status_code=401, content={"valid": False})
+
+    total_events = len(payload.events)
+    unique_users = len({event.user for event in payload.events})
 
     revenue = 0.0
-    positive_totals = defaultdict(float)
+    user_totals = defaultdict(float)
 
-    for event in request.events:
+    for event in payload.events:
         if event.amount > 0:
             revenue += event.amount
-            positive_totals[event.user] += event.amount
+            user_totals[event.user] += event.amount
 
-    top_user = None
-    if positive_totals:
-        top_user = max(positive_totals, key=positive_totals.get)
+    top_user = max(user_totals, key=user_totals.get) if user_totals else ""
 
     return {
         "email": EMAIL,
