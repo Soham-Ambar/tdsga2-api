@@ -1,15 +1,13 @@
 from fastapi import FastAPI
 from routes.q1_stats import router as stats_router
+from routes.q2_verify import router as verify_router
 
 app = FastAPI(title="TDS GA2 API")
 
-# Q1 endpoint
 app.include_router(stats_router)
+app.include_router(verify_router)
 
 
 @app.get("/")
-def root():
-    return {
-        "message": "TDS GA2 API is running",
-        "available_endpoints": ["GET /stats?values=1,2,3"]
-    }
+def home():
+    return {"message": "TDS GA2 API is running"}
