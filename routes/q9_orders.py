@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -13,7 +13,6 @@ RATE_LIMIT = 16
 WINDOW_SECONDS = 10
 
 orders_by_key = {}
-created_orders = []
 rate_buckets = {}
 
 
@@ -23,8 +22,7 @@ class OrderRequest(BaseModel):
 
 
 def make_cursor(index: int) -> str:
-    raw = str(index).encode()
-    return base64.urlsafe_b64encode(raw).decode()
+    return base64.urlsafe_b64encode(str(index).encode()).decode()
 
 
 def read_cursor(cursor: Optional[str]) -> int:
@@ -43,20 +41,34 @@ def check_rate_limit(client_id: str):
     bucket[:] = [t for t in bucket if now - t < WINDOW_SECONDS]
 
     if len(bucket) >= RATE_LIMIT:
-        retry_after = max(1, int(WINDOW_SECONDS - (now - bucket[0])))
-        return False, retry_after
+        retry_after = max(1, int(WINDOW_SECONDS - (now - bucket[0])) + 1)
+        return False, str(retry_after)
 
     bucket.append(now)
     return True, None
 
 
+def rate_limit_response(retry_after: str):
+    return JSONResponse(
+        status_code=429,
+        content={"error": "rate limit exceeded"},
+        headers={
+            "Retry-After": retry_after,
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
 @router.options("/orders")
 def orders_options():
-    response = JSONResponse(content={})
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 
 @router.post("/orders")
@@ -66,19 +78,18 @@ def create_order(
     x_client_id: Optional[str] = Header(default="default", alias="X-Client-Id"),
 ):
     allowed, retry_after = check_rate_limit(x_client_id or "default")
+
     if not allowed:
-        response = JSONResponse(status_code=429, content={"error": "rate limit exceeded"})
-        response.headers["Retry-After"] = str(retry_after)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        return response
+        return rate_limit_response(retry_after)
 
     if not idempotency_key:
         idempotency_key = str(uuid.uuid4())
 
     if idempotency_key in orders_by_key:
-        response = JSONResponse(content=orders_by_key[idempotency_key])
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        return response
+        return JSONResponse(
+            content=orders_by_key[idempotency_key],
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
 
     order = {
         "id": str(uuid.uuid4()),
@@ -87,32 +98,30 @@ def create_order(
     }
 
     orders_by_key[idempotency_key] = order
-    created_orders.append(order)
 
-    response = JSONResponse(status_code=201, content=order)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
+    return JSONResponse(
+        status_code=201,
+        content=order,
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 
 @router.get("/orders")
 def list_orders(
-    request: Request,
     limit: int = Query(default=10),
     cursor: Optional[str] = None,
     x_client_id: Optional[str] = Header(default="default", alias="X-Client-Id"),
 ):
     allowed, retry_after = check_rate_limit(x_client_id or "default")
+
     if not allowed:
-        response = JSONResponse(status_code=429, content={"error": "rate limit exceeded"})
-        response.headers["Retry-After"] = str(retry_after)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        return response
+        return rate_limit_response(retry_after)
 
     if limit < 1:
         limit = 1
 
-    if limit > 48:
-        limit = 48
+    if limit > TOTAL_ORDERS:
+        limit = TOTAL_ORDERS
 
     start = read_cursor(cursor)
     end = min(start + limit, TOTAL_ORDERS)
@@ -127,11 +136,10 @@ def list_orders(
 
     next_cursor = make_cursor(end) if end < TOTAL_ORDERS else None
 
-    response = JSONResponse(
+    return JSONResponse(
         content={
             "items": items,
             "next_cursor": next_cursor,
-        }
+        },
+        headers={"Access-Control-Allow-Origin": "*"},
     )
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
